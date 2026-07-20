@@ -1,0 +1,91 @@
+{
+  "doctrine_ref": "https://github.com/shinya0x00/doctrine/blob/26397fca6878176195fcaaf3b3d4780df39c3164/DOCTRINE.md",
+  "scope": "Complete the external-consumer architecture.",
+  "source_order": [
+    "1. DESIGN.md／ADRで「self-host完了」と「external distribution未完成」を分離し、Doctrineと薄い入口の所有境界を決定する。",
+    "2. PSH v2を設計し、CLI解決、固定tests、native projections、managed-path migrationを定義する。",
+    "3. Adapterとworkflowをclean targetで自己完結させ、wiredを実行可能性まで検査する。",
+    "4. GitHub platform設定用のoperator runbook／companionを用意する。",
+    "5. 外部repoでCodex・Cursor・Claude Codeそれぞれのfresh-session canaryを実行する。",
+    "6. 他OrganizationでIssue→PR→repair→merge、upgrade、rollbackまで証明した後にtag／Releaseを公開する。"
+  ],
+  "allowed_paths": [
+    "DESIGN.md",
+    "docs/adr/",
+    ".github/workflows/delivery-check.yml"
+  ],
+  "validation": ["run the clean-consumer canary"],
+  "stop_conditions": ["real platform authority is unavailable"],
+  "unknowns": "none_observed",
+  "runtime_change": true,
+  "runtime_wiring": "required",
+  "finished_state": "Another organization can install, repair, verify, and merge through the real runtime.",
+  "acceptance_condition": "A clean external consumer completes the live E2E path.",
+  "remaining_diff": [
+    "separate design boundaries",
+    "design PSH v2",
+    "connect the adapter",
+    "run external canaries"
+  ],
+  "attachment_points": [
+    {
+      "name": "consumer-workflow",
+      "allowed_path": ".github/workflows/delivery-check.yml",
+      "registration_point": "jobs.delivery-check.steps",
+      "real_trigger": "pull_request",
+      "oracle": "the live exact-head check invokes the consumer adapter"
+    }
+  ],
+  "next_fill_order": [
+    "design-boundary",
+    "psh-v2-design",
+    "consumer-wiring",
+    "platform-runbook",
+    "fresh-session-canaries",
+    "external-proof",
+    "verify",
+    "prune"
+  ],
+  "milestones": [
+    {
+      "id": "design-boundary",
+      "kind": "design",
+      "description": "Update DESIGN.md and an ADR to separate self-host completion from external distribution and decide Doctrine and thin-entry ownership boundaries."
+    },
+    {
+      "id": "psh-v2-design",
+      "kind": "design",
+      "description": "Design PSH v2, including CLI resolution, fixed tests, native projections, and managed-path migration."
+    },
+    {
+      "id": "consumer-wiring",
+      "kind": "walking_skeleton",
+      "description": "Make the adapter and workflow self-contained and verify execution in a clean target.",
+      "connects": ["consumer-workflow"],
+      "real_wiring": true,
+      "firing_evidence_required": true,
+      "evidence_owner": "exact-head GitHub check run",
+      "feature_depth": 0
+    },
+    {
+      "id": "platform-runbook",
+      "kind": "feature_slice"
+    },
+    {
+      "id": "fresh-session-canaries",
+      "kind": "e2e_test"
+    },
+    {
+      "id": "external-proof",
+      "kind": "feature_slice"
+    },
+    {
+      "id": "verify",
+      "kind": "verification"
+    },
+    {
+      "id": "prune",
+      "kind": "prune_report"
+    }
+  ]
+}

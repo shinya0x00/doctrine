@@ -1,0 +1,4 @@
+interface:
+  display_name: "Doctrine Planner"
+  short_description: "Lint wiring-first implementation plans"
+  default_prompt: "Use $doctrine-planner to produce and lint a wiring-first implementation plan."

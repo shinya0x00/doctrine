@@ -1,0 +1,70 @@
+{
+  "doctrine_ref": "https://github.com/shinya0x00/doctrine/blob/26397fca6878176195fcaaf3b3d4780df39c3164/DOCTRINE.md",
+  "scope": "Route a runtime adapter through a real consumer workflow.",
+  "allowed_paths": [
+    ".github/workflows/delivery-check.yml",
+    ".agents/skills/agent-operated/SKILL.md"
+  ],
+  "validation": [
+    "python scripts/lint_plan.py PLAN.json",
+    "run the consumer smoke test"
+  ],
+  "stop_conditions": [
+    "verified authority for a declared attachment is absent"
+  ],
+  "unknowns": "none_observed",
+  "runtime_change": true,
+  "runtime_wiring": "required",
+  "finished_state": "A clean consumer invokes the adapter through the real workflow.",
+  "acceptance_condition": "The real workflow fires and the smoke oracle observes the adapter.",
+  "remaining_diff": [
+    "connect the real attachment",
+    "prove the E2E oracle",
+    "fill behavior",
+    "verify",
+    "enumerate prune candidates"
+  ],
+  "attachment_points": [
+    {
+      "name": "consumer-workflow",
+      "allowed_path": ".github/workflows/delivery-check.yml",
+      "registration_point": "jobs.delivery-check.steps",
+      "real_trigger": "pull_request",
+      "oracle": "the exact-head check run invokes the installed adapter"
+    }
+  ],
+  "next_fill_order": [
+    "skeleton",
+    "e2e",
+    "behavior",
+    "verify",
+    "prune"
+  ],
+  "milestones": [
+    {
+      "id": "skeleton",
+      "kind": "walking_skeleton",
+      "connects": ["consumer-workflow"],
+      "real_wiring": true,
+      "firing_evidence_required": true,
+      "evidence_owner": "exact-head GitHub check run",
+      "feature_depth": 0
+    },
+    {
+      "id": "e2e",
+      "kind": "e2e_test"
+    },
+    {
+      "id": "behavior",
+      "kind": "feature_slice"
+    },
+    {
+      "id": "verify",
+      "kind": "verification"
+    },
+    {
+      "id": "prune",
+      "kind": "prune_report"
+    }
+  ]
+}

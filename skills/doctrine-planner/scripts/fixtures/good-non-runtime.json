@@ -1,0 +1,26 @@
+{
+  "doctrine_ref": "https://github.com/shinya0x00/doctrine/blob/26397fca6878176195fcaaf3b3d4780df39c3164/DOCTRINE.md",
+  "scope": "Correct a documentation link without changing runtime behavior.",
+  "allowed_paths": ["README.md"],
+  "validation": ["test the documented URL with a read-only request"],
+  "stop_conditions": ["the canonical destination cannot be identified"],
+  "unknowns": "none_observed",
+  "runtime_change": false,
+  "runtime_wiring": "not_applicable",
+  "attachment_points": [],
+  "finished_state": "README.md resolves to the canonical document.",
+  "acceptance_condition": "The documented immutable URL returns the intended document.",
+  "acceptance_validation": ["read the immutable URL and compare its document identity"],
+  "remaining_diff": ["replace the stale link", "validate the destination"],
+  "next_fill_order": ["documentation", "validate"],
+  "milestones": [
+    {
+      "id": "documentation",
+      "kind": "documentation"
+    },
+    {
+      "id": "validate",
+      "kind": "verification"
+    }
+  ]
+}
