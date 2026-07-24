@@ -27,10 +27,11 @@ moving refである`main`は最新版を発見するpointerであり、runのEvi
 deliveryへ残すEvidenceは、target自身の入力、runtime firing、validation、artifact、
 または観測結果に限定する。
 
-## Planner package
+## Skill packages
 
-- canonical source: [`skills/doctrine-planner/`](skills/doctrine-planner/)
-- installed copy: Agent runtimeが読み込むlocal cache
+- implementation planning: [`skills/doctrine-planner/`](skills/doctrine-planner/)
+- standard and terminology selection: [`skills/prefer-standards/`](skills/prefer-standards/)
+- installed copies: Agent runtimeが読み込むlocal cache
 
 packageの変更はrepository側を先に更新し、testsとskill validationを通した同一内容を
 installed copyへ反映する。installed copyだけの変更は記録済みとみなさない。
