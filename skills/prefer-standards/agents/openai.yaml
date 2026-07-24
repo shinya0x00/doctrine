@@ -1,0 +1,4 @@
+interface:
+  display_name: "Prefer Standards"
+  short_description: "Reuse standards and established names before inventing"
+  default_prompt: "Use $prefer-standards to evaluate this mechanism and terminology against existing standards and prior art."
