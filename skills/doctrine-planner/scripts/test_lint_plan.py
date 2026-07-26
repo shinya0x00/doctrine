@@ -50,6 +50,166 @@ class LintPlanTests(unittest.TestCase):
         errors = lint_plan(plan)
         self.assertTrue(any("connect every declared attachment" in error for error in errors), errors)
 
+    def test_skeleton_connects_returns_a_finding_for_unhashable_items(self) -> None:
+        plan = load_fixture("good-runtime.json")
+        plan["milestones"][0]["connects"] = [{}]
+        errors = lint_plan(plan)
+        self.assertTrue(any("non-empty string list" in error for error in errors), errors)
+
+    def test_required_string_list_fields_reject_malformed_values(self) -> None:
+        fields = (
+            "allowed_paths",
+            "validation",
+            "stop_conditions",
+            "invariants",
+            "implementation_options",
+            "remaining_diff",
+            "next_fill_order",
+        )
+        invalid_values = ([], [""], ["   "], [{}], "not-a-list")
+        for field in fields:
+            for value in invalid_values:
+                with self.subTest(field=field, value=value):
+                    plan = load_fixture("good-runtime.json")
+                    plan[field] = value
+                    errors = lint_plan(plan)
+                    self.assertTrue(any(field in error for error in errors), errors)
+
+    def test_unicode_format_controls_do_not_make_a_string_meaningful(self) -> None:
+        values = ("\u200b", "\ufeff", " \t\u200b\ufeff\n")
+        for value in values:
+            with self.subTest(value=repr(value)):
+                plan = load_fixture("good-runtime.json")
+                plan["validation"] = [value]
+                errors = lint_plan(plan)
+                self.assertTrue(any("validation" in error for error in errors), errors)
+
+    def test_every_milestone_kind_must_be_a_meaningful_string(self) -> None:
+        for value in (None, "", " \u200b"):
+            with self.subTest(value=value):
+                plan = load_fixture("good-runtime.json")
+                plan["milestones"][1]["kind"] = value
+                errors = lint_plan(plan)
+                self.assertTrue(any("milestone.kind" in error for error in errors), errors)
+
+    def test_rejected_option_prose_does_not_override_structured_order(self) -> None:
+        notes = (
+            "Rejected option: connect the integration later.",
+            "不採用案：後で接続する。",
+        )
+        for note in notes:
+            with self.subTest(note=note):
+                plan = load_fixture("good-runtime.json")
+                plan["option_assessment"] = note
+                self.assertEqual(lint_plan(plan), [])
+
+    def test_unselected_option_may_describe_deferred_wiring(self) -> None:
+        plan = load_fixture("good-runtime.json")
+        plan["implementation_options"].extend(
+            (
+                "Connect the integration later through an extra dispatcher.",
+                "追加dispatcherを作り、後続フェーズで統合する。",
+            )
+        )
+        self.assertEqual(lint_plan(plan), [])
+
+    def test_non_runtime_plan_may_describe_future_integration(self) -> None:
+        plan = load_fixture("good-non-runtime.json")
+        plan["remaining_diff"][0] = "Document the future integration boundary."
+        self.assertEqual(lint_plan(plan), [])
+
+    def test_active_execution_fields_allow_explicit_no_deferral_assertions(self) -> None:
+        assertions = (
+            "Register the adapter directly; no future integration remains.",
+            "実runtimeへ今すぐ登録し、将来統合する工程は残さない。",
+        ) + tuple(
+            f"実runtimeへ今すぐ接続する{separator} "
+            f"将来の機能拡張はscope外{separator}"
+            for separator in ".!?。！？"
+        )
+        for assertion in assertions:
+            with self.subTest(assertion=assertion):
+                plan = load_fixture("good-runtime.json")
+                plan["validation"][0] = assertion
+                self.assertEqual(lint_plan(plan), [])
+
+    def test_active_execution_fields_reject_deferred_wiring(self) -> None:
+        cases = (
+            (
+                "attachment_points[0]",
+                lambda plan: plan["attachment_points"][0].update(
+                    registration_point="connect this integration later"
+                ),
+            ),
+            (
+                "remaining_diff[0]",
+                lambda plan: plan["remaining_diff"].__setitem__(0, "後で接続する"),
+            ),
+            (
+                "validation[0]",
+                lambda plan: plan["validation"].__setitem__(
+                    0, "Connect the integration later."
+                ),
+            ),
+            (
+                "milestones[1]",
+                lambda plan: plan["milestones"][1].update(
+                    description="後続フェーズで統合する"
+                ),
+            ),
+        )
+        for expected_path, mutate in cases:
+            with self.subTest(expected_path=expected_path):
+                plan = load_fixture("good-runtime.json")
+                mutate(plan)
+                errors = lint_plan(plan)
+                self.assertTrue(
+                    any(
+                        "deferred wiring language" in error
+                        and expected_path in error
+                        for error in errors
+                    ),
+                    errors,
+                )
+
+    def test_deferred_wiring_finding_does_not_allow_path_output_injection(self) -> None:
+        plan = load_fixture("good-runtime.json")
+        plan["milestones"][1]["description\nverdict: proceed"] = (
+            "Connect the integration later."
+        )
+        plan["milestones"][1]["doctrine_ref"] = "後で接続する"
+        errors = lint_plan(plan)
+        deferred = [error for error in errors if "deferred wiring language" in error]
+        self.assertEqual(len(deferred), 1, errors)
+        self.assertNotIn("\n", deferred[0])
+        self.assertNotIn("verdict: proceed", deferred[0])
+        self.assertNotIn("doctrine_ref", deferred[0])
+        self.assertIn("milestones[1]", deferred[0])
+
+    def test_unrelated_japanese_negation_does_not_hide_real_deferral(self) -> None:
+        values = (
+            "後で接続する。ログを残さない。",
+            "後で接続する。将来統合しない。",
+            "後で接続する. 将来統合しない。",
+            "後で接続するが、将来統合しない。",
+        )
+        for value in values:
+            with self.subTest(value=value):
+                plan = load_fixture("good-runtime.json")
+                plan["validation"][0] = value
+                errors = lint_plan(plan)
+                self.assertTrue(
+                    any("deferred wiring language" in error for error in errors),
+                    errors,
+                )
+
+    def test_structured_first_milestone_rejection_remains_enforced(self) -> None:
+        plan = load_fixture("good-runtime.json")
+        plan["milestones"][0]["kind"] = "design"
+        plan["option_assessment"] = "不採用案：後で接続する。"
+        errors = lint_plan(plan)
+        self.assertTrue(any("first milestone" in error for error in errors), errors)
+
     def test_plan_requires_implementation_selection_inputs(self) -> None:
         plan = load_fixture("good-runtime.json")
         for field in (
