@@ -70,13 +70,15 @@ installed copyは実行用のcacheであり、このrepositoryがcanonical sourc
 
 `doctrine-planner`のlinterは、planの構造とfield type、exact source referenceの形、
 implementation optionの参照関係、milestoneの順序、runtime attachmentの接続を
-決定論的に検査する。`verdict: proceed`は、これらの機械的な条件を満たしたという
-Evidenceである。
+決定論的に検査する。さらにruntime planのactive execution fieldにある既知の
+deferred-integration表現を英語・日本語で検出する。`verdict: proceed`は、これらの機械的な条件を
+満たしたというEvidenceである。
 
 一方で、optionが実際に同じacceptance conditionを満たすか、選択が最も単純か、
 complexityの理由が真実か、validationが実行可能か、runtimeが発火したか、あるいは
 作業が安全に完了したかは証明しない。lint通過は、planの正しさや完了そのものの
-代わりにはならない。
+代わりにはならない。自然言語の検出は既知patternに限定され、すべての言い換えを
+網羅するものではない。
 
 ## Validation
 

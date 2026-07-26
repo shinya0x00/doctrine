@@ -16,6 +16,35 @@ DOCTRINE_REF_PATTERN = re.compile(
     r"\Ahttps://github\.com/shinya0x00/doctrine/blob/"
     r"[0-9a-f]{40}/DOCTRINE\.md\Z"
 )
+DEFERRED_WIRING_PATTERN = re.compile(
+    r"\b(?:connect|wire|attach|register|integrat(?:e|ion))\b.{0,48}"
+    r"\b(?:later|eventually|future|afterwards|subsequent\s+phase)\b|"
+    r"\b(?:later|eventually|future|subsequent\s+phase)\b.{0,48}"
+    r"\b(?:connect|wire|attach|register|integrat(?:e|ion))\b|"
+    r"(?:接続|結線|登録|統合|組み込|取り付け).{0,24}"
+    r"(?:後で|後から|後ほど|将来|後続(?:の)?(?:フェーズ|段階))|"
+    r"(?:後で|後から|後ほど|将来|後続(?:の)?(?:フェーズ|段階)).{0,24}"
+    r"(?:接続|結線|登録|統合|組み込|取り付け)",
+    re.IGNORECASE,
+)
+
+
+def _deferred_wiring_paths(value: Any, path: str) -> list[str]:
+    if isinstance(value, str):
+        return [path] if DEFERRED_WIRING_PATTERN.search(value) else []
+    if isinstance(value, list):
+        return [
+            match
+            for index, item in enumerate(value)
+            for match in _deferred_wiring_paths(item, f"{path}[{index}]")
+        ]
+    if isinstance(value, dict):
+        return [
+            match
+            for key, item in value.items()
+            for match in _deferred_wiring_paths(item, f"{path}.{key}")
+        ]
+    return []
 
 
 def _nonempty_string(value: Any) -> bool:
@@ -91,6 +120,28 @@ def lint_plan(plan: Any) -> list[str]:
         errors.append("unknowns must be 'none_observed' or a non-empty string list")
     if not isinstance(plan.get("runtime_change"), bool):
         errors.append("runtime_change must be boolean")
+
+    deferred_paths = (
+        sorted(
+            {
+                match
+                for field in (
+                    "selected_implementation",
+                    "remaining_diff",
+                    "attachment_points",
+                    "milestones",
+                )
+                for match in _deferred_wiring_paths(plan.get(field), field)
+            }
+        )
+        if plan.get("runtime_change") is True
+        else []
+    )
+    if deferred_paths:
+        errors.append(
+            "deferred wiring language is forbidden in active execution fields: "
+            + ", ".join(deferred_paths)
+        )
 
     if not isinstance(milestones, list) or not milestones:
         return errors

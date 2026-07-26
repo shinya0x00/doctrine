@@ -103,6 +103,54 @@ class LintPlanTests(unittest.TestCase):
                 plan["option_assessment"] = note
                 self.assertEqual(lint_plan(plan), [])
 
+    def test_unselected_option_may_describe_deferred_wiring(self) -> None:
+        plan = load_fixture("good-runtime.json")
+        plan["implementation_options"].extend(
+            (
+                "Connect the integration later through an extra dispatcher.",
+                "追加dispatcherを作り、後続フェーズで統合する。",
+            )
+        )
+        self.assertEqual(lint_plan(plan), [])
+
+    def test_non_runtime_plan_may_describe_future_integration(self) -> None:
+        plan = load_fixture("good-non-runtime.json")
+        plan["remaining_diff"][0] = "Document the future integration boundary."
+        self.assertEqual(lint_plan(plan), [])
+
+    def test_active_execution_fields_reject_deferred_wiring(self) -> None:
+        cases = (
+            (
+                "attachment_points[0].registration_point",
+                lambda plan: plan["attachment_points"][0].update(
+                    registration_point="connect this integration later"
+                ),
+            ),
+            (
+                "remaining_diff[0]",
+                lambda plan: plan["remaining_diff"].__setitem__(0, "後で接続する"),
+            ),
+            (
+                "milestones[1].description",
+                lambda plan: plan["milestones"][1].update(
+                    description="後続フェーズで統合する"
+                ),
+            ),
+        )
+        for expected_path, mutate in cases:
+            with self.subTest(expected_path=expected_path):
+                plan = load_fixture("good-runtime.json")
+                mutate(plan)
+                errors = lint_plan(plan)
+                self.assertTrue(
+                    any(
+                        "deferred wiring language" in error
+                        and expected_path in error
+                        for error in errors
+                    ),
+                    errors,
+                )
+
     def test_structured_first_milestone_rejection_remains_enforced(self) -> None:
         plan = load_fixture("good-runtime.json")
         plan["milestones"][0]["kind"] = "design"
