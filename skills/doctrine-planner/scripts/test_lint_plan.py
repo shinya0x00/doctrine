@@ -122,6 +122,8 @@ class LintPlanTests(unittest.TestCase):
         assertions = (
             "Register the adapter directly; no future integration remains.",
             "実runtimeへ今すぐ登録し、将来統合する工程は残さない。",
+            "実runtimeへ今すぐ接続する。将来の機能拡張はscope外。",
+            "実runtimeへ今すぐ接続する! 将来の機能拡張はscope外!",
         )
         for assertion in assertions:
             with self.subTest(assertion=assertion):

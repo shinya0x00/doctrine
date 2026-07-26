@@ -23,8 +23,8 @@ DEFERRED_WIRING_PATTERN = re.compile(
     r"\b(?:later|eventually|future|afterwards|subsequent\s+phase)\b|"
     r"\b(?:later|eventually|future|subsequent\s+phase)\b.{0,48}"
     r"\b(?:connect|wire|attach|register|integrat(?:e|ion))\b|"
-    rf"{JAPANESE_WIRING}[^。！？.\n]{{0,24}}{JAPANESE_DEFERRED_TIME}|"
-    rf"{JAPANESE_DEFERRED_TIME}[^。！？.\n]{{0,24}}{JAPANESE_WIRING}",
+    rf"{JAPANESE_WIRING}[^。！？.!?\n]{{0,24}}{JAPANESE_DEFERRED_TIME}|"
+    rf"{JAPANESE_DEFERRED_TIME}[^。！？.!?\n]{{0,24}}{JAPANESE_WIRING}",
     re.IGNORECASE,
 )
 NEGATED_DEFERRED_WIRING_PATTERN = re.compile(
@@ -35,7 +35,7 @@ NEGATED_DEFERRED_WIRING_PATTERN = re.compile(
     r"(?:connection|wiring|attachment|registration|integration)\s+"
     r"is\s+(?:not|never)\s+(?:planned|allowed|required)\b|"
     rf"{JAPANESE_DEFERRED_TIME}"
-    rf"(?:(?!{JAPANESE_WIRING}|[。！？.\n]).){{0,24}}"
+    rf"(?:(?!{JAPANESE_WIRING}|[。！？.!?\n]).){{0,24}}"
     rf"{JAPANESE_WIRING}"
     r"(?:しない|しません|させない|"
     r"(?:する)?(?:工程|作業|手順|予定|余地)(?:は|を|が)?"
