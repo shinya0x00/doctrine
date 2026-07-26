@@ -183,10 +183,19 @@ class LintPlanTests(unittest.TestCase):
         self.assertIn("milestones[1]", deferred[0])
 
     def test_unrelated_japanese_negation_does_not_hide_real_deferral(self) -> None:
-        plan = load_fixture("good-runtime.json")
-        plan["validation"][0] = "後で接続する。ログを残さない。"
-        errors = lint_plan(plan)
-        self.assertTrue(any("deferred wiring language" in error for error in errors), errors)
+        values = (
+            "後で接続する。ログを残さない。",
+            "後で接続する。将来統合しない。",
+        )
+        for value in values:
+            with self.subTest(value=value):
+                plan = load_fixture("good-runtime.json")
+                plan["validation"][0] = value
+                errors = lint_plan(plan)
+                self.assertTrue(
+                    any("deferred wiring language" in error for error in errors),
+                    errors,
+                )
 
     def test_structured_first_milestone_rejection_remains_enforced(self) -> None:
         plan = load_fixture("good-runtime.json")

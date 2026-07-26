@@ -23,7 +23,7 @@ DEFERRED_WIRING_PATTERN = re.compile(
     r"\b(?:connect|wire|attach|register|integrat(?:e|ion))\b|"
     r"(?:接続|結線|登録|統合|組み込|取り付け).{0,24}"
     r"(?:後で|後から|後ほど|将来|後続(?:の)?(?:フェーズ|段階))|"
-    r"(?:後で|後から|後ほど|将来|後続(?:の)?(?:フェーズ|段階)).{0,24}"
+    r"(?:後で|後から|後ほど|将来|後続(?:の)?(?:フェーズ|段階))[^。！？\n]{0,24}"
     r"(?:接続|結線|登録|統合|組み込|取り付け)",
     re.IGNORECASE,
 )
@@ -34,7 +34,7 @@ NEGATED_DEFERRED_WIRING_PATTERN = re.compile(
     r"\b(?:future|later|eventual)\s+"
     r"(?:connection|wiring|attachment|registration|integration)\s+"
     r"is\s+(?:not|never)\s+(?:planned|allowed|required)\b|"
-    r"(?:後で|後から|後ほど|将来|後続(?:の)?(?:フェーズ|段階)).{0,24}"
+    r"(?:後で|後から|後ほど|将来|後続(?:の)?(?:フェーズ|段階))[^。！？\n]{0,24}"
     r"(?:接続|結線|登録|統合|組み込|取り付け)"
     r"(?:しない|しません|させない|"
     r"(?:する)?(?:工程|作業|手順|予定|余地)(?:は|を|が)?"
