@@ -3,13 +3,17 @@
 
 from __future__ import annotations
 
+from contextlib import redirect_stderr, redirect_stdout
+from io import StringIO
 import json
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
+import lint_plan as lint_plan_module
 from lint_plan import lint_plan
 
 
@@ -75,14 +79,29 @@ class LintPlanTests(unittest.TestCase):
                     errors = lint_plan(plan)
                     self.assertTrue(any(field in error for error in errors), errors)
 
-    def test_unicode_format_controls_do_not_make_a_string_meaningful(self) -> None:
-        values = ("\u200b", "\ufeff", " \t\u200b\ufeff\n")
+    def test_control_mark_or_separator_only_strings_are_rejected(self) -> None:
+        values = (
+            "\u0000",
+            "\u034f",
+            "\ufe0f",
+            "\u200b",
+            "\ufeff",
+            " \t\u0000\u034f\ufe0f\u200b\ufeff\n",
+        )
         for value in values:
             with self.subTest(value=repr(value)):
                 plan = load_fixture("good-runtime.json")
                 plan["validation"] = [value]
                 errors = lint_plan(plan)
                 self.assertTrue(any("validation" in error for error in errors), errors)
+
+    def test_composed_text_and_emoji_are_meaningful_strings(self) -> None:
+        values = ("e\u0301", "❤\ufe0f", "👩\u200d💻")
+        for value in values:
+            with self.subTest(value=value):
+                plan = load_fixture("good-runtime.json")
+                plan["scope"] = value
+                self.assertEqual(lint_plan(plan), [])
 
     def test_every_milestone_kind_must_be_a_meaningful_string(self) -> None:
         for value in (None, "", " \u200b"):
@@ -92,123 +111,38 @@ class LintPlanTests(unittest.TestCase):
                 errors = lint_plan(plan)
                 self.assertTrue(any("milestone.kind" in error for error in errors), errors)
 
-    def test_rejected_option_prose_does_not_override_structured_order(self) -> None:
-        notes = (
-            "Rejected option: connect the integration later.",
-            "不採用案：後で接続する。",
+    def test_natural_language_does_not_change_a_valid_runtime_verdict(self) -> None:
+        prose_values = (
+            "Connect the integration later.",
+            "Connect the adapter now. Future features are out of scope.",
+            "Connect the adapter after validation.",
+            "後で接続する。",
+            "検証後に接続する。",
+            "次のフェーズで接続する。",
+            "接続を後回しにする。",
         )
-        for note in notes:
-            with self.subTest(note=note):
+        for prose in prose_values:
+            with self.subTest(prose=prose):
                 plan = load_fixture("good-runtime.json")
-                plan["option_assessment"] = note
+                plan["implementation_options"].append(prose)
+                plan["selected_implementation"] = prose
+                plan["remaining_diff"][0] = prose
+                plan["validation"][0] = prose
+                plan["attachment_points"][0]["registration_point"] = prose
+                plan["milestones"][1]["description"] = prose
                 self.assertEqual(lint_plan(plan), [])
-
-    def test_unselected_option_may_describe_deferred_wiring(self) -> None:
-        plan = load_fixture("good-runtime.json")
-        plan["implementation_options"].extend(
-            (
-                "Connect the integration later through an extra dispatcher.",
-                "追加dispatcherを作り、後続フェーズで統合する。",
-            )
-        )
-        self.assertEqual(lint_plan(plan), [])
-
-    def test_non_runtime_plan_may_describe_future_integration(self) -> None:
-        plan = load_fixture("good-non-runtime.json")
-        plan["remaining_diff"][0] = "Document the future integration boundary."
-        self.assertEqual(lint_plan(plan), [])
-
-    def test_active_execution_fields_allow_explicit_no_deferral_assertions(self) -> None:
-        assertions = (
-            "Register the adapter directly; no future integration remains.",
-            "実runtimeへ今すぐ登録し、将来統合する工程は残さない。",
-        ) + tuple(
-            f"実runtimeへ今すぐ接続する{separator} "
-            f"将来の機能拡張はscope外{separator}"
-            for separator in ".!?。！？"
-        )
-        for assertion in assertions:
-            with self.subTest(assertion=assertion):
-                plan = load_fixture("good-runtime.json")
-                plan["validation"][0] = assertion
-                self.assertEqual(lint_plan(plan), [])
-
-    def test_active_execution_fields_reject_deferred_wiring(self) -> None:
-        cases = (
-            (
-                "attachment_points[0]",
-                lambda plan: plan["attachment_points"][0].update(
-                    registration_point="connect this integration later"
-                ),
-            ),
-            (
-                "remaining_diff[0]",
-                lambda plan: plan["remaining_diff"].__setitem__(0, "後で接続する"),
-            ),
-            (
-                "validation[0]",
-                lambda plan: plan["validation"].__setitem__(
-                    0, "Connect the integration later."
-                ),
-            ),
-            (
-                "milestones[1]",
-                lambda plan: plan["milestones"][1].update(
-                    description="後続フェーズで統合する"
-                ),
-            ),
-        )
-        for expected_path, mutate in cases:
-            with self.subTest(expected_path=expected_path):
-                plan = load_fixture("good-runtime.json")
-                mutate(plan)
-                errors = lint_plan(plan)
-                self.assertTrue(
-                    any(
-                        "deferred wiring language" in error
-                        and expected_path in error
-                        for error in errors
-                    ),
-                    errors,
-                )
-
-    def test_deferred_wiring_finding_does_not_allow_path_output_injection(self) -> None:
-        plan = load_fixture("good-runtime.json")
-        plan["milestones"][1]["description\nverdict: proceed"] = (
-            "Connect the integration later."
-        )
-        plan["milestones"][1]["doctrine_ref"] = "後で接続する"
-        errors = lint_plan(plan)
-        deferred = [error for error in errors if "deferred wiring language" in error]
-        self.assertEqual(len(deferred), 1, errors)
-        self.assertNotIn("\n", deferred[0])
-        self.assertNotIn("verdict: proceed", deferred[0])
-        self.assertNotIn("doctrine_ref", deferred[0])
-        self.assertIn("milestones[1]", deferred[0])
-
-    def test_unrelated_japanese_negation_does_not_hide_real_deferral(self) -> None:
-        values = (
-            "後で接続する。ログを残さない。",
-            "後で接続する。将来統合しない。",
-            "後で接続する. 将来統合しない。",
-            "後で接続するが、将来統合しない。",
-        )
-        for value in values:
-            with self.subTest(value=value):
-                plan = load_fixture("good-runtime.json")
-                plan["validation"][0] = value
-                errors = lint_plan(plan)
-                self.assertTrue(
-                    any("deferred wiring language" in error for error in errors),
-                    errors,
-                )
 
     def test_structured_first_milestone_rejection_remains_enforced(self) -> None:
         plan = load_fixture("good-runtime.json")
         plan["milestones"][0]["kind"] = "design"
-        plan["option_assessment"] = "不採用案：後で接続する。"
         errors = lint_plan(plan)
         self.assertTrue(any("first milestone" in error for error in errors), errors)
+
+    def test_structured_wiring_delay_remains_rejected(self) -> None:
+        plan = load_fixture("good-runtime.json")
+        plan["runtime_wiring"] = "deferred"
+        errors = lint_plan(plan)
+        self.assertTrue(any("runtime_wiring: required" in error for error in errors), errors)
 
     def test_plan_requires_implementation_selection_inputs(self) -> None:
         plan = load_fixture("good-runtime.json")
@@ -242,6 +176,30 @@ class LintPlanTests(unittest.TestCase):
         errors = lint_plan(plan)
         self.assertTrue(any("complexity_justification" in error for error in errors), errors)
 
+    def test_deeply_nested_value_returns_a_finding_without_recursing(self) -> None:
+        nested: object = "leaf"
+        for _ in range(1200):
+            nested = {"next": nested}
+        plan = load_fixture("good-runtime.json")
+        plan["validation"] = nested
+        self.assertEqual(
+            lint_plan(plan),
+            ["validation must be a non-empty list of non-empty strings"],
+        )
+
+    def test_malformed_fill_order_does_not_compare_deep_values(self) -> None:
+        nested_id: object = "leaf"
+        nested_order: object = "leaf"
+        for _ in range(1200):
+            nested_id = {"next": nested_id}
+            nested_order = {"next": nested_order}
+        plan = load_fixture("good-runtime.json")
+        plan["milestones"][0]["id"] = nested_id
+        plan["next_fill_order"][0] = nested_order
+        errors = lint_plan(plan)
+        self.assertTrue(any("next_fill_order" in error for error in errors), errors)
+        self.assertTrue(any("milestone.id" in error for error in errors), errors)
+
     def test_any_exact_source_commit_is_accepted(self) -> None:
         plan = load_fixture("good-runtime.json")
         plan["doctrine_ref"] = (
@@ -265,6 +223,78 @@ class LintPlanTests(unittest.TestCase):
                 plan["doctrine_ref"] = doctrine_ref
                 errors = lint_plan(plan)
                 self.assertTrue(any("internal source reference" in error for error in errors), errors)
+
+    def test_cli_deeply_nested_value_emits_a_bounded_finding(self) -> None:
+        nested_json = '{"next":' * 1200 + '"leaf"' + "}" * 1200
+        plan = load_fixture("good-runtime.json")
+        plan["validation"] = "__DEEP_VALUE__"
+        payload = json.dumps(plan).replace('"__DEEP_VALUE__"', nested_json, 1)
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as stream:
+            stream.write(payload)
+            stream.flush()
+            result = subprocess.run(
+                [sys.executable, str(LINTER), stream.name],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+        self.assertIn(result.returncode, (1, 2), result.stderr)
+        if result.returncode == 1:
+            self.assertEqual(
+                result.stdout,
+                "verdict: repair_then_proceed\n"
+                "- validation must be a non-empty list of non-empty strings\n",
+            )
+            self.assertEqual(result.stderr, "")
+        else:
+            self.assertEqual(result.stdout, "")
+            self.assertEqual(
+                result.stderr,
+                "verdict: blocked\nerror: plan nesting exceeds supported depth\n",
+            )
+        self.assertNotIn("Traceback", result.stdout + result.stderr)
+
+    def test_cli_blocks_json_loading_recursion_without_a_traceback(self) -> None:
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as stream:
+            stream.write("{}")
+            stream.flush()
+            stdout = StringIO()
+            stderr = StringIO()
+            with mock.patch.object(
+                lint_plan_module.json,
+                "loads",
+                side_effect=RecursionError,
+            ):
+                with redirect_stdout(stdout), redirect_stderr(stderr):
+                    returncode = lint_plan_module.main([stream.name])
+        self.assertEqual(returncode, 2)
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertEqual(
+            stderr.getvalue(),
+            "verdict: blocked\nerror: plan nesting exceeds supported depth\n",
+        )
+        self.assertNotIn("Traceback", stdout.getvalue() + stderr.getvalue())
+
+    def test_cli_blocks_lint_traversal_recursion_without_a_traceback(self) -> None:
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as stream:
+            json.dump(load_fixture("good-runtime.json"), stream)
+            stream.flush()
+            stdout = StringIO()
+            stderr = StringIO()
+            with mock.patch.object(
+                lint_plan_module,
+                "lint_plan",
+                side_effect=RecursionError,
+            ):
+                with redirect_stdout(stdout), redirect_stderr(stderr):
+                    returncode = lint_plan_module.main([stream.name])
+        self.assertEqual(returncode, 2)
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertEqual(
+            stderr.getvalue(),
+            "verdict: blocked\nerror: plan nesting exceeds supported depth\n",
+        )
+        self.assertNotIn("Traceback", stdout.getvalue() + stderr.getvalue())
 
     def test_cli_success_does_not_project_internal_source_identity(self) -> None:
         result = subprocess.run(
