@@ -50,6 +50,38 @@ class LintPlanTests(unittest.TestCase):
         errors = lint_plan(plan)
         self.assertTrue(any("connect every declared attachment" in error for error in errors), errors)
 
+    def test_plan_requires_implementation_selection_inputs(self) -> None:
+        plan = load_fixture("good-runtime.json")
+        for field in (
+            "invariants",
+            "implementation_options",
+            "selected_implementation",
+            "complexity_justification",
+        ):
+            with self.subTest(field=field):
+                candidate = dict(plan)
+                candidate.pop(field)
+                errors = lint_plan(candidate)
+                self.assertTrue(any(field in error for error in errors), errors)
+
+    def test_selected_implementation_must_match_an_option(self) -> None:
+        plan = load_fixture("good-runtime.json")
+        plan["selected_implementation"] = "an unlisted alternative"
+        errors = lint_plan(plan)
+        self.assertTrue(any("exactly match one implementation option" in error for error in errors), errors)
+
+    def test_implementation_options_must_be_unique(self) -> None:
+        plan = load_fixture("good-runtime.json")
+        plan["implementation_options"].append(plan["implementation_options"][0])
+        errors = lint_plan(plan)
+        self.assertTrue(any("implementation_options must be unique" in error for error in errors), errors)
+
+    def test_complexity_justification_has_bounded_shape(self) -> None:
+        plan = load_fixture("good-runtime.json")
+        plan["complexity_justification"] = []
+        errors = lint_plan(plan)
+        self.assertTrue(any("complexity_justification" in error for error in errors), errors)
+
     def test_any_exact_source_commit_is_accepted(self) -> None:
         plan = load_fixture("good-runtime.json")
         plan["doctrine_ref"] = (

@@ -10,6 +10,12 @@
   "attachment_points": [],
   "finished_state": "README.md resolves to the canonical document.",
   "acceptance_condition": "The documented immutable URL returns the intended document.",
+  "invariants": ["The link remains immutable and resolves without runtime wiring."],
+  "implementation_options": [
+    "Replace the stale link with the canonical immutable URL."
+  ],
+  "selected_implementation": "Replace the stale link with the canonical immutable URL.",
+  "complexity_justification": "none_observed",
   "acceptance_validation": ["read the immutable URL and compare its document identity"],
   "remaining_diff": ["replace the stale link", "validate the destination"],
   "next_fill_order": ["documentation", "validate"],
