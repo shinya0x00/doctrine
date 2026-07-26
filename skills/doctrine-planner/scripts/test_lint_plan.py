@@ -50,6 +50,66 @@ class LintPlanTests(unittest.TestCase):
         errors = lint_plan(plan)
         self.assertTrue(any("connect every declared attachment" in error for error in errors), errors)
 
+    def test_skeleton_connects_returns_a_finding_for_unhashable_items(self) -> None:
+        plan = load_fixture("good-runtime.json")
+        plan["milestones"][0]["connects"] = [{}]
+        errors = lint_plan(plan)
+        self.assertTrue(any("non-empty string list" in error for error in errors), errors)
+
+    def test_required_string_list_fields_reject_malformed_values(self) -> None:
+        fields = (
+            "allowed_paths",
+            "validation",
+            "stop_conditions",
+            "invariants",
+            "implementation_options",
+            "remaining_diff",
+            "next_fill_order",
+        )
+        invalid_values = ([], [""], ["   "], [{}], "not-a-list")
+        for field in fields:
+            for value in invalid_values:
+                with self.subTest(field=field, value=value):
+                    plan = load_fixture("good-runtime.json")
+                    plan[field] = value
+                    errors = lint_plan(plan)
+                    self.assertTrue(any(field in error for error in errors), errors)
+
+    def test_unicode_format_controls_do_not_make_a_string_meaningful(self) -> None:
+        values = ("\u200b", "\ufeff", " \t\u200b\ufeff\n")
+        for value in values:
+            with self.subTest(value=repr(value)):
+                plan = load_fixture("good-runtime.json")
+                plan["validation"] = [value]
+                errors = lint_plan(plan)
+                self.assertTrue(any("validation" in error for error in errors), errors)
+
+    def test_every_milestone_kind_must_be_a_meaningful_string(self) -> None:
+        for value in (None, "", " \u200b"):
+            with self.subTest(value=value):
+                plan = load_fixture("good-runtime.json")
+                plan["milestones"][1]["kind"] = value
+                errors = lint_plan(plan)
+                self.assertTrue(any("milestone.kind" in error for error in errors), errors)
+
+    def test_rejected_option_prose_does_not_override_structured_order(self) -> None:
+        notes = (
+            "Rejected option: connect the integration later.",
+            "不採用案：後で接続する。",
+        )
+        for note in notes:
+            with self.subTest(note=note):
+                plan = load_fixture("good-runtime.json")
+                plan["option_assessment"] = note
+                self.assertEqual(lint_plan(plan), [])
+
+    def test_structured_first_milestone_rejection_remains_enforced(self) -> None:
+        plan = load_fixture("good-runtime.json")
+        plan["milestones"][0]["kind"] = "design"
+        plan["option_assessment"] = "不採用案：後で接続する。"
+        errors = lint_plan(plan)
+        self.assertTrue(any("first milestone" in error for error in errors), errors)
+
     def test_plan_requires_implementation_selection_inputs(self) -> None:
         plan = load_fixture("good-runtime.json")
         for field in (

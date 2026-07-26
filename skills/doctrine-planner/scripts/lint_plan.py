@@ -7,6 +7,7 @@ import argparse
 import json
 import re
 import sys
+import unicodedata
 from pathlib import Path
 from typing import Any
 
@@ -15,27 +16,13 @@ DOCTRINE_REF_PATTERN = re.compile(
     r"\Ahttps://github\.com/shinya0x00/doctrine/blob/"
     r"[0-9a-f]{40}/DOCTRINE\.md\Z"
 )
-DEFERRED_WIRING = re.compile(
-    r"\b(?:connect|wire|attach|register|integrat(?:e|ion))\b.{0,48}"
-    r"\b(?:later|eventually|future|afterwards|subsequent\s+phase)\b|"
-    r"\b(?:later|eventually|future|subsequent\s+phase)\b.{0,48}"
-    r"\b(?:connect|wire|attach|register|integrat(?:e|ion))\b",
-    re.IGNORECASE,
-)
-
-
-def _strings(value: Any) -> list[str]:
-    if isinstance(value, str):
-        return [value]
-    if isinstance(value, list):
-        return [item for value_item in value for item in _strings(value_item)]
-    if isinstance(value, dict):
-        return [item for value_item in value.values() for item in _strings(value_item)]
-    return []
 
 
 def _nonempty_string(value: Any) -> bool:
-    return isinstance(value, str) and bool(value.strip())
+    return isinstance(value, str) and any(
+        not character.isspace() and unicodedata.category(character) != "Cf"
+        for character in value
+    )
 
 
 def _nonempty_string_list(value: Any) -> bool:
@@ -62,22 +49,19 @@ def lint_plan(plan: Any) -> list[str]:
         "implementation_options",
         "remaining_diff",
         "next_fill_order",
-        "milestones",
     ):
-        value = plan.get(field)
-        if not isinstance(value, list) or not value:
-            errors.append(f"{field} must be a non-empty list")
+        if not _nonempty_string_list(plan.get(field)):
+            errors.append(f"{field} must be a non-empty list of non-empty strings")
 
-    invariants = plan.get("invariants")
-    if isinstance(invariants, list) and invariants and not _nonempty_string_list(invariants):
-        errors.append("invariants must contain only non-empty strings")
+    milestones = plan.get("milestones")
+    if not isinstance(milestones, list) or not milestones:
+        errors.append("milestones must be a non-empty list")
 
     implementation_options = plan.get("implementation_options")
-    if isinstance(implementation_options, list) and implementation_options:
-        if not _nonempty_string_list(implementation_options):
-            errors.append("implementation_options must contain only non-empty strings")
-        elif len(implementation_options) != len(set(implementation_options)):
-            errors.append("implementation_options must be unique")
+    if _nonempty_string_list(implementation_options) and len(
+        implementation_options
+    ) != len(set(implementation_options)):
+        errors.append("implementation_options must be unique")
     selected_implementation = plan.get("selected_implementation")
     if not _nonempty_string(selected_implementation):
         errors.append("selected_implementation must be a non-empty string")
@@ -108,7 +92,6 @@ def lint_plan(plan: Any) -> list[str]:
     if not isinstance(plan.get("runtime_change"), bool):
         errors.append("runtime_change must be boolean")
 
-    milestones = plan.get("milestones")
     if not isinstance(milestones, list) or not milestones:
         return errors
     if not all(isinstance(item, dict) for item in milestones):
@@ -120,12 +103,11 @@ def lint_plan(plan: Any) -> list[str]:
         errors.append("every milestone.id must be a non-empty string")
     elif len(ids) != len(set(ids)):
         errors.append("milestone ids must be unique")
+    kinds = [item.get("kind") for item in milestones]
+    if not all(_nonempty_string(item) for item in kinds):
+        errors.append("every milestone.kind must be a non-empty string")
     if isinstance(plan.get("next_fill_order"), list) and plan["next_fill_order"] != ids:
         errors.append("next_fill_order must exactly match milestone id order")
-
-    deferred = sorted({text for text in _strings(plan) if DEFERRED_WIRING.search(text)})
-    if deferred:
-        errors.append("deferred wiring language is forbidden: " + " | ".join(deferred))
 
     if plan.get("runtime_change") is False:
         if plan.get("runtime_wiring") != "not_applicable":
@@ -173,13 +155,17 @@ def lint_plan(plan: Any) -> list[str]:
     if not _nonempty_string(first.get("evidence_owner")):
         errors.append("the walking skeleton must name its evidence_owner")
     connects = first.get("connects")
-    if not isinstance(connects, list) or len(connects) != len(set(connects)) or set(connects) != set(attachment_names):
+    if not _nonempty_string_list(connects):
+        errors.append(
+            "the walking skeleton must connect every declared attachment exactly once "
+            "using a non-empty string list"
+        )
+    elif len(connects) != len(set(connects)) or set(connects) != set(attachment_names):
         errors.append("the walking skeleton must connect every declared attachment exactly once")
     depth = first.get("feature_depth")
     if not isinstance(depth, int) or isinstance(depth, bool) or depth < 0:
         errors.append("walking_skeleton.feature_depth must be a non-negative integer")
 
-    kinds = [item.get("kind") for item in milestones]
     feature_indexes = [index for index, kind in enumerate(kinds) if kind == "feature_slice"]
     e2e_indexes = [index for index, kind in enumerate(kinds) if kind == "e2e_test"]
     if feature_indexes and (not e2e_indexes or e2e_indexes[0] > feature_indexes[0]):
