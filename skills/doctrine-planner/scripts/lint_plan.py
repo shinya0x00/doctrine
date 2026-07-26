@@ -16,15 +16,15 @@ DOCTRINE_REF_PATTERN = re.compile(
     r"\Ahttps://github\.com/shinya0x00/doctrine/blob/"
     r"[0-9a-f]{40}/DOCTRINE\.md\Z"
 )
+JAPANESE_WIRING = r"(?:接続|結線|登録|統合|組み込|取り付け)"
+JAPANESE_DEFERRED_TIME = r"(?:後で|後から|後ほど|将来|後続(?:の)?(?:フェーズ|段階))"
 DEFERRED_WIRING_PATTERN = re.compile(
     r"\b(?:connect|wire|attach|register|integrat(?:e|ion))\b.{0,48}"
     r"\b(?:later|eventually|future|afterwards|subsequent\s+phase)\b|"
     r"\b(?:later|eventually|future|subsequent\s+phase)\b.{0,48}"
     r"\b(?:connect|wire|attach|register|integrat(?:e|ion))\b|"
-    r"(?:接続|結線|登録|統合|組み込|取り付け).{0,24}"
-    r"(?:後で|後から|後ほど|将来|後続(?:の)?(?:フェーズ|段階))|"
-    r"(?:後で|後から|後ほど|将来|後続(?:の)?(?:フェーズ|段階))[^。！？\n]{0,24}"
-    r"(?:接続|結線|登録|統合|組み込|取り付け)",
+    rf"{JAPANESE_WIRING}[^。！？.\n]{{0,24}}{JAPANESE_DEFERRED_TIME}|"
+    rf"{JAPANESE_DEFERRED_TIME}[^。！？.\n]{{0,24}}{JAPANESE_WIRING}",
     re.IGNORECASE,
 )
 NEGATED_DEFERRED_WIRING_PATTERN = re.compile(
@@ -34,8 +34,9 @@ NEGATED_DEFERRED_WIRING_PATTERN = re.compile(
     r"\b(?:future|later|eventual)\s+"
     r"(?:connection|wiring|attachment|registration|integration)\s+"
     r"is\s+(?:not|never)\s+(?:planned|allowed|required)\b|"
-    r"(?:後で|後から|後ほど|将来|後続(?:の)?(?:フェーズ|段階))[^。！？\n]{0,24}"
-    r"(?:接続|結線|登録|統合|組み込|取り付け)"
+    rf"{JAPANESE_DEFERRED_TIME}"
+    rf"(?:(?!{JAPANESE_WIRING}|[。！？.\n]).){{0,24}}"
+    rf"{JAPANESE_WIRING}"
     r"(?:しない|しません|させない|"
     r"(?:する)?(?:工程|作業|手順|予定|余地)(?:は|を|が)?"
     r"(?:残さない|残っていない|禁止する)|"

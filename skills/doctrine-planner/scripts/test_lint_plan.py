@@ -186,6 +186,8 @@ class LintPlanTests(unittest.TestCase):
         values = (
             "後で接続する。ログを残さない。",
             "後で接続する。将来統合しない。",
+            "後で接続する. 将来統合しない。",
+            "後で接続するが、将来統合しない。",
         )
         for value in values:
             with self.subTest(value=value):
