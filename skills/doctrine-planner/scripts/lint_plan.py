@@ -16,57 +16,11 @@ DOCTRINE_REF_PATTERN = re.compile(
     r"\Ahttps://github\.com/shinya0x00/doctrine/blob/"
     r"[0-9a-f]{40}/DOCTRINE\.md\Z"
 )
-JAPANESE_WIRING = r"(?:接続|結線|登録|統合|組み込|取り付け)"
-JAPANESE_DEFERRED_TIME = r"(?:後で|後から|後ほど|将来|後続(?:の)?(?:フェーズ|段階))"
-DEFERRED_WIRING_PATTERN = re.compile(
-    r"\b(?:connect|wire|attach|register|integrat(?:e|ion))\b.{0,48}"
-    r"\b(?:later|eventually|future|afterwards|subsequent\s+phase)\b|"
-    r"\b(?:later|eventually|future|subsequent\s+phase)\b.{0,48}"
-    r"\b(?:connect|wire|attach|register|integrat(?:e|ion))\b|"
-    rf"{JAPANESE_WIRING}[^。！？.!?\n]{{0,24}}{JAPANESE_DEFERRED_TIME}|"
-    rf"{JAPANESE_DEFERRED_TIME}[^。！？.!?\n]{{0,24}}{JAPANESE_WIRING}",
-    re.IGNORECASE,
-)
-NEGATED_DEFERRED_WIRING_PATTERN = re.compile(
-    r"\b(?:no|without)\s+(?:future|later|eventual)\s+"
-    r"(?:connection|wiring|attachment|registration|integration)"
-    r"(?:\s+(?:remains?|is\s+(?:planned|allowed|required)))?\b|"
-    r"\b(?:future|later|eventual)\s+"
-    r"(?:connection|wiring|attachment|registration|integration)\s+"
-    r"is\s+(?:not|never)\s+(?:planned|allowed|required)\b|"
-    rf"{JAPANESE_DEFERRED_TIME}"
-    rf"(?:(?!{JAPANESE_WIRING}|[。！？.!?\n]).){{0,24}}"
-    rf"{JAPANESE_WIRING}"
-    r"(?:しない|しません|させない|"
-    r"(?:する)?(?:工程|作業|手順|予定|余地)(?:は|を|が)?"
-    r"(?:残さない|残っていない|禁止する)|"
-    r"(?:は|を|が)?(?:残さない|残っていない|禁止する|不要である))",
-    re.IGNORECASE,
-)
-
-
-def _deferred_wiring_paths(value: Any, path: str) -> list[str]:
-    if isinstance(value, str):
-        executable_text = NEGATED_DEFERRED_WIRING_PATTERN.sub("", value)
-        return [path] if DEFERRED_WIRING_PATTERN.search(executable_text) else []
-    if isinstance(value, list):
-        return [
-            match
-            for index, item in enumerate(value)
-            for match in _deferred_wiring_paths(item, f"{path}[{index}]")
-        ]
-    if isinstance(value, dict):
-        return [
-            match
-            for item in value.values()
-            for match in _deferred_wiring_paths(item, path)
-        ]
-    return []
 
 
 def _nonempty_string(value: Any) -> bool:
     return isinstance(value, str) and any(
-        not character.isspace() and unicodedata.category(character) != "Cf"
+        unicodedata.category(character)[0] not in {"C", "M", "Z"}
         for character in value
     )
 
@@ -138,29 +92,6 @@ def lint_plan(plan: Any) -> list[str]:
     if not isinstance(plan.get("runtime_change"), bool):
         errors.append("runtime_change must be boolean")
 
-    deferred_paths = (
-        sorted(
-            {
-                match
-                for field in (
-                    "selected_implementation",
-                    "remaining_diff",
-                    "validation",
-                    "attachment_points",
-                    "milestones",
-                )
-                for match in _deferred_wiring_paths(plan.get(field), field)
-            }
-        )
-        if plan.get("runtime_change") is True
-        else []
-    )
-    if deferred_paths:
-        errors.append(
-            "deferred wiring language is forbidden in active execution fields: "
-            + ", ".join(deferred_paths)
-        )
-
     if not isinstance(milestones, list) or not milestones:
         return errors
     if not all(isinstance(item, dict) for item in milestones):
@@ -175,7 +106,12 @@ def lint_plan(plan: Any) -> list[str]:
     kinds = [item.get("kind") for item in milestones]
     if not all(_nonempty_string(item) for item in kinds):
         errors.append("every milestone.kind must be a non-empty string")
-    if isinstance(plan.get("next_fill_order"), list) and plan["next_fill_order"] != ids:
+    next_fill_order = plan.get("next_fill_order")
+    if (
+        _nonempty_string_list(next_fill_order)
+        and all(_nonempty_string(item) for item in ids)
+        and next_fill_order != ids
+    ):
         errors.append("next_fill_order must exactly match milestone id order")
 
     if plan.get("runtime_change") is False:
@@ -256,11 +192,17 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         plan = json.loads(args.plan.read_text(encoding="utf-8"))
+        errors = lint_plan(plan)
+    except RecursionError:
+        print(
+            "verdict: blocked\nerror: plan nesting exceeds supported depth",
+            file=sys.stderr,
+        )
+        return 2
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
         print(f"verdict: blocked\nerror: {error}", file=sys.stderr)
         return 2
 
-    errors = lint_plan(plan)
     if errors:
         print("verdict: repair_then_proceed")
         for error in errors:

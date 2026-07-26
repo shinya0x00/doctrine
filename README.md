@@ -70,15 +70,16 @@ installed copyは実行用のcacheであり、このrepositoryがcanonical sourc
 
 `doctrine-planner`のlinterは、planの構造とfield type、exact source referenceの形、
 implementation optionの参照関係、milestoneの順序、runtime attachmentの接続を
-決定論的に検査する。さらにruntime planのactive execution fieldにある既知の
-deferred-integration表現を英語・日本語で検出する。`verdict: proceed`は、これらの機械的な条件を
+決定論的に検査する。runtime wiringのmachine authorityは、`runtime_wiring`、
+`attachment_points`、先頭の`walking_skeleton`、`real_wiring`、`connects`である。
+自由文の語句はverdictを決めない。`verdict: proceed`は、これらの機械的な条件を
 満たしたというEvidenceである。
 
 一方で、optionが実際に同じacceptance conditionを満たすか、選択が最も単純か、
 complexityの理由が真実か、validationが実行可能か、runtimeが発火したか、あるいは
 作業が安全に完了したかは証明しない。lint通過は、planの正しさや完了そのものの
-代わりにはならない。自然言語の検出は既知patternに限定され、すべての言い換えを
-網羅するものではない。
+代わりにはならない。自由文にある矛盾やdeferred-integrationの意味は、自然言語を
+機械判定するhard gateではなく、plan reviewで確認する。
 
 ## Validation
 
@@ -89,8 +90,9 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s skills/doctrine-planne
 ```
 
 [`test.yml`](.github/workflows/test.yml)は、pull requestと`main`へのpushで同じテストを実行し、
-型崩れを含む既知のlinter regressionを自動的に検出する。CIの成功はこのテスト範囲の
-Evidenceであり、Doctrine全体の意味的な正しさやgovernanceを証明するものではない。
+型崩れ、内容を持たない文字列、深くnestした入力を含む既知のlinter regressionを
+自動的に検出する。CIの成功はこのテスト範囲のEvidenceであり、Doctrine全体の
+意味的な正しさやgovernanceを証明するものではない。
 
 ## Current edition
 
