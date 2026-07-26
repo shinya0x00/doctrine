@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deterministically lint implementation-plan structure and ordering."""
+"""Deterministically lint implementation-plan structure, selection, and ordering."""
 
 from __future__ import annotations
 
@@ -58,6 +58,8 @@ def lint_plan(plan: Any) -> list[str]:
         "allowed_paths",
         "validation",
         "stop_conditions",
+        "invariants",
+        "implementation_options",
         "remaining_diff",
         "next_fill_order",
         "milestones",
@@ -65,6 +67,34 @@ def lint_plan(plan: Any) -> list[str]:
         value = plan.get(field)
         if not isinstance(value, list) or not value:
             errors.append(f"{field} must be a non-empty list")
+
+    invariants = plan.get("invariants")
+    if isinstance(invariants, list) and invariants and not _nonempty_string_list(invariants):
+        errors.append("invariants must contain only non-empty strings")
+
+    implementation_options = plan.get("implementation_options")
+    if isinstance(implementation_options, list) and implementation_options:
+        if not _nonempty_string_list(implementation_options):
+            errors.append("implementation_options must contain only non-empty strings")
+        elif len(implementation_options) != len(set(implementation_options)):
+            errors.append("implementation_options must be unique")
+    selected_implementation = plan.get("selected_implementation")
+    if not _nonempty_string(selected_implementation):
+        errors.append("selected_implementation must be a non-empty string")
+    elif (
+        isinstance(implementation_options, list)
+        and implementation_options
+        and selected_implementation not in implementation_options
+    ):
+        errors.append("selected_implementation must exactly match one implementation option")
+    complexity_justification = plan.get("complexity_justification")
+    if (
+        complexity_justification != "none_observed"
+        and not _nonempty_string_list(complexity_justification)
+    ):
+        errors.append(
+            "complexity_justification must be 'none_observed' or a non-empty string list"
+        )
 
     doctrine_ref = plan.get("doctrine_ref")
     if not _nonempty_string(doctrine_ref) or not DOCTRINE_REF_PATTERN.fullmatch(doctrine_ref):

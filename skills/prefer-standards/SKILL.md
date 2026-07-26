@@ -15,11 +15,11 @@ description: Prefer industry or de facto standards and established original name
 - head API path: `repos/shinya0x00/doctrine/git/ref/heads/main`
 - content API path: `repos/shinya0x00/doctrine/contents/DOCTRINE.md?ref=<exact-commit-sha>`
 
-`main`のcommit SHAを一度だけ取得し、そのexact commitから`DOCTRINE.md`を全文読む。そのrunでは同じSHAを固定し、「発明よりstandardを、新語より既存名を優先する」というRuleの規則・確認・非目的をcontrol sourceとして使う。
+`main`を一度だけ解決し、ref objectが`commit`型で、そのSHAが40文字のlowercase hexadecimalであることを確認する。そのexact commitから`DOCTRINE.md`を全文読み、同じSHAをrunの終了まで固定する。「発明よりstandardを、新語より既存名を優先する」というRuleの規則・確認・非目的をcontrol sourceとして使う。moving refから本文を取得せず、stale snapshotへfallbackしない。
 
 Doctrineのtitle、repository、URL、commit SHA、Rule番号はinvocation内部にだけ保持する。targetのREADME、DESIGN、ADR、schema、code comment、CLI output、reportなどへ投影しない。targetには、調べたprior art、具体的なcapability gap、採用理由、正式名称などtarget固有の根拠だけを残す。
 
-sourceの解決または全文取得に失敗した場合、新しいcustom mechanismまたはpublic termを正当化しない。不足しているEvidenceを示し、その判断に依存しない作業だけを続ける。
+sourceの解決、ref objectとSHAの検証、exact-ref取得、または全文読了に失敗した場合、新しいcustom mechanismまたはpublic termを正当化しない。不足しているEvidenceを示し、その判断に依存しない作業だけを続ける。
 
 ## Workflow
 
@@ -51,10 +51,13 @@ repositoryを扱う場合は、先にcode、schema、public API、README、DESIG
 - 満たさない具体的なcapability
 - officialなextension、profile、registry、vendor extensionの余地
 - interoperability、migration、maintenanceへの影響
+- requirement、invariant、適用されるtarget constraintを満たすために必要なmechanism、state、dependency、special case
 
 比較には必要に応じて[prior-art review template](references/prior-art-review.md)をscratchで使う。targetに既存のDecision形式がある場合は、その形式を優先する。
 
 「用途が特殊」「柔軟性が足りない」「将来困る」など、観測可能な差へ分解されていない理由でstandardを棄却しない。
+
+同じrequirementとinvariantを満たし、適用されるtarget constraintとstandard優先にも適合するcandidateが複数ある場合、より少ないmechanism、state、dependency、special caseで実現できるcandidateを選ぶ。追加の複雑さは、それがなければ満たせないrequirement、invariant、または適用されるtarget constraintによって正当化する。
 
 ### 4. 最も狭いcustomizationを選ぶ
 

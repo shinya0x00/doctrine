@@ -22,9 +22,9 @@
 
 ## Prior art
 
-| Candidate | Authority and canonical reference | Semantic fit | Concrete capability gap | Profile or extension option | Consequence |
-|---|---|---|---|---|---|
-|  |  |  |  |  |  |
+| Candidate | Authority and canonical reference | Semantic fit | Concrete capability gap | Profile or extension option | Mechanisms, state, dependencies, and special cases | Consequence |
+|---|---|---|---|---|---|---|
+|  |  |  |  |  |  |  |
 
 正式名称、version、registry、extension pointを確認する。名前の類似だけでfitを判断しない。
 
@@ -43,6 +43,7 @@
 - Adopt as-is, profile, extension, or custom:
 - Why it satisfies the requirement:
 - Remaining gap:
+- Required added complexity and its requirement, invariant, or applicable constraint:
 - Evidence still missing:
 
 ## Custom justification

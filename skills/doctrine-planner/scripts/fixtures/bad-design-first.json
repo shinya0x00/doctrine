@@ -21,6 +21,18 @@
   "runtime_wiring": "required",
   "finished_state": "Another organization can install, repair, verify, and merge through the real runtime.",
   "acceptance_condition": "A clean external consumer completes the live E2E path.",
+  "invariants": [
+    "The consumer uses the real workflow and platform authority.",
+    "Fresh sessions can reproduce the delivery path."
+  ],
+  "implementation_options": [
+    "Connect the existing adapter through the real consumer workflow before adding behavior.",
+    "Complete design documents and platform abstractions before connecting the consumer workflow."
+  ],
+  "selected_implementation": "Complete design documents and platform abstractions before connecting the consumer workflow.",
+  "complexity_justification": [
+    "The selected design layers are claimed to support future distribution."
+  ],
   "remaining_diff": [
     "separate design boundaries",
     "design PSH v2",

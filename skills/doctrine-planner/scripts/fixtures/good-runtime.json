@@ -17,6 +17,16 @@
   "runtime_wiring": "required",
   "finished_state": "A clean consumer invokes the adapter through the real workflow.",
   "acceptance_condition": "The real workflow fires and the smoke oracle observes the adapter.",
+  "invariants": [
+    "The workflow uses the real registration point.",
+    "The adapter remains observable through the smoke oracle."
+  ],
+  "implementation_options": [
+    "Register the adapter directly in the existing workflow with no additional internal state.",
+    "Add an internal dispatcher and state file before registering the adapter in the workflow."
+  ],
+  "selected_implementation": "Register the adapter directly in the existing workflow with no additional internal state.",
+  "complexity_justification": "none_observed",
   "remaining_diff": [
     "connect the real attachment",
     "prove the E2E oracle",

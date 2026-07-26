@@ -275,6 +275,8 @@ unknown listを前進回避に使用することも認めない。
 
 最初に、要求された効果と守るinvariantを`acceptance_condition`として定義する。`finished_state`は、その`acceptance_condition`を満たす最小のbehaviorとする。feature、component、generalizationの一覧を`finished_state`とみなさない。
 
+適用される他のRuleに適合し、同じ`acceptance_condition`とinvariantを満たす複数の実装案がある場合、より単純な案を選ぶ。追加の複雑さは、それがなければ満たせないrequirement、invariant、または他のRuleへの適合によって正当化する。
+
 `finished_state`から逆算した最短の順序で実装する。
 
 runtime behaviorを変更する場合、最初のimplementation sliceは、本物のruntimeを端から端まで通るwalking skeletonとする。feature depthはzeroでもよいが、wiringは実物でなければならない。
@@ -302,6 +304,7 @@ pruneは完成と検証の後に行う。削除候補を列挙し、何を削る
 ### 確認
 
 - `finished_state`が、要求された効果とinvariantを満たす最小のbehaviorとして定義されているか。
+- 適用される他のRuleに適合し、同じ`acceptance_condition`とinvariantを満たす範囲で、より少ないmechanism、state、dependency、special caseで実現できる案がないか。
 - `remaining_diff`と`next_fill_order`の各項目は、未達の`acceptance_condition`またはinvariantに結び付いているか。
 - runtime changeの最初のmilestoneにreal wiringとfiring Evidenceがあるか。
 - walking skeletonと各behavior sliceの検証後に`acceptance_condition`を再評価しているか。
