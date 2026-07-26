@@ -27,11 +27,25 @@ DEFERRED_WIRING_PATTERN = re.compile(
     r"(?:接続|結線|登録|統合|組み込|取り付け)",
     re.IGNORECASE,
 )
+NEGATED_DEFERRED_WIRING_PATTERN = re.compile(
+    r"\b(?:no|without)\s+(?:future|later|eventual)\s+"
+    r"(?:connection|wiring|attachment|registration|integration)"
+    r"(?:\s+(?:remains?|is\s+(?:planned|allowed|required)))?\b|"
+    r"\b(?:future|later|eventual)\s+"
+    r"(?:connection|wiring|attachment|registration|integration)\s+"
+    r"is\s+(?:not|never)\s+(?:planned|allowed|required)\b|"
+    r"(?:後で|後から|後ほど|将来|後続(?:の)?(?:フェーズ|段階)).{0,24}"
+    r"(?:接続|結線|登録|統合|組み込|取り付け).{0,16}"
+    r"(?:しない|しません|させない|残さない|残っていない|禁止する)",
+    re.IGNORECASE,
+)
+PATH_KEY_PATTERN = re.compile(r"\A[A-Za-z_][A-Za-z0-9_]*\Z")
 
 
 def _deferred_wiring_paths(value: Any, path: str) -> list[str]:
     if isinstance(value, str):
-        return [path] if DEFERRED_WIRING_PATTERN.search(value) else []
+        executable_text = NEGATED_DEFERRED_WIRING_PATTERN.sub("", value)
+        return [path] if DEFERRED_WIRING_PATTERN.search(executable_text) else []
     if isinstance(value, list):
         return [
             match
@@ -42,7 +56,12 @@ def _deferred_wiring_paths(value: Any, path: str) -> list[str]:
         return [
             match
             for key, item in value.items()
-            for match in _deferred_wiring_paths(item, f"{path}.{key}")
+            for match in _deferred_wiring_paths(
+                item,
+                f"{path}.{key}"
+                if isinstance(key, str) and PATH_KEY_PATTERN.fullmatch(key)
+                else f"{path}.<key>",
+            )
         ]
     return []
 
@@ -128,6 +147,7 @@ def lint_plan(plan: Any) -> list[str]:
                 for field in (
                     "selected_implementation",
                     "remaining_diff",
+                    "validation",
                     "attachment_points",
                     "milestones",
                 )

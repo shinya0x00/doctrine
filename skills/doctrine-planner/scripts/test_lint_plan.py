@@ -118,6 +118,17 @@ class LintPlanTests(unittest.TestCase):
         plan["remaining_diff"][0] = "Document the future integration boundary."
         self.assertEqual(lint_plan(plan), [])
 
+    def test_active_execution_fields_allow_explicit_no_deferral_assertions(self) -> None:
+        assertions = (
+            "Register the adapter directly; no future integration remains.",
+            "実runtimeへ今すぐ登録し、将来統合する工程は残さない。",
+        )
+        for assertion in assertions:
+            with self.subTest(assertion=assertion):
+                plan = load_fixture("good-runtime.json")
+                plan["validation"][0] = assertion
+                self.assertEqual(lint_plan(plan), [])
+
     def test_active_execution_fields_reject_deferred_wiring(self) -> None:
         cases = (
             (
@@ -129,6 +140,12 @@ class LintPlanTests(unittest.TestCase):
             (
                 "remaining_diff[0]",
                 lambda plan: plan["remaining_diff"].__setitem__(0, "後で接続する"),
+            ),
+            (
+                "validation[0]",
+                lambda plan: plan["validation"].__setitem__(
+                    0, "Connect the integration later."
+                ),
             ),
             (
                 "milestones[1].description",
@@ -150,6 +167,18 @@ class LintPlanTests(unittest.TestCase):
                     ),
                     errors,
                 )
+
+    def test_deferred_wiring_finding_does_not_allow_path_output_injection(self) -> None:
+        plan = load_fixture("good-runtime.json")
+        plan["milestones"][1]["description\nverdict: proceed"] = (
+            "Connect the integration later."
+        )
+        errors = lint_plan(plan)
+        deferred = [error for error in errors if "deferred wiring language" in error]
+        self.assertEqual(len(deferred), 1, errors)
+        self.assertNotIn("\n", deferred[0])
+        self.assertNotIn("verdict: proceed", deferred[0])
+        self.assertIn("milestones[1].<key>", deferred[0])
 
     def test_structured_first_milestone_rejection_remains_enforced(self) -> None:
         plan = load_fixture("good-runtime.json")
