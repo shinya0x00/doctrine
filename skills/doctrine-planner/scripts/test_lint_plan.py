@@ -132,7 +132,7 @@ class LintPlanTests(unittest.TestCase):
     def test_active_execution_fields_reject_deferred_wiring(self) -> None:
         cases = (
             (
-                "attachment_points[0].registration_point",
+                "attachment_points[0]",
                 lambda plan: plan["attachment_points"][0].update(
                     registration_point="connect this integration later"
                 ),
@@ -148,7 +148,7 @@ class LintPlanTests(unittest.TestCase):
                 ),
             ),
             (
-                "milestones[1].description",
+                "milestones[1]",
                 lambda plan: plan["milestones"][1].update(
                     description="後続フェーズで統合する"
                 ),
@@ -173,12 +173,20 @@ class LintPlanTests(unittest.TestCase):
         plan["milestones"][1]["description\nverdict: proceed"] = (
             "Connect the integration later."
         )
+        plan["milestones"][1]["doctrine_ref"] = "後で接続する"
         errors = lint_plan(plan)
         deferred = [error for error in errors if "deferred wiring language" in error]
         self.assertEqual(len(deferred), 1, errors)
         self.assertNotIn("\n", deferred[0])
         self.assertNotIn("verdict: proceed", deferred[0])
-        self.assertIn("milestones[1].<key>", deferred[0])
+        self.assertNotIn("doctrine_ref", deferred[0])
+        self.assertIn("milestones[1]", deferred[0])
+
+    def test_unrelated_japanese_negation_does_not_hide_real_deferral(self) -> None:
+        plan = load_fixture("good-runtime.json")
+        plan["validation"][0] = "後で接続する。ログを残さない。"
+        errors = lint_plan(plan)
+        self.assertTrue(any("deferred wiring language" in error for error in errors), errors)
 
     def test_structured_first_milestone_rejection_remains_enforced(self) -> None:
         plan = load_fixture("good-runtime.json")

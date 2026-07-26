@@ -35,11 +35,13 @@ NEGATED_DEFERRED_WIRING_PATTERN = re.compile(
     r"(?:connection|wiring|attachment|registration|integration)\s+"
     r"is\s+(?:not|never)\s+(?:planned|allowed|required)\b|"
     r"(?:後で|後から|後ほど|将来|後続(?:の)?(?:フェーズ|段階)).{0,24}"
-    r"(?:接続|結線|登録|統合|組み込|取り付け).{0,16}"
-    r"(?:しない|しません|させない|残さない|残っていない|禁止する)",
+    r"(?:接続|結線|登録|統合|組み込|取り付け)"
+    r"(?:しない|しません|させない|"
+    r"(?:する)?(?:工程|作業|手順|予定|余地)(?:は|を|が)?"
+    r"(?:残さない|残っていない|禁止する)|"
+    r"(?:は|を|が)?(?:残さない|残っていない|禁止する|不要である))",
     re.IGNORECASE,
 )
-PATH_KEY_PATTERN = re.compile(r"\A[A-Za-z_][A-Za-z0-9_]*\Z")
 
 
 def _deferred_wiring_paths(value: Any, path: str) -> list[str]:
@@ -55,13 +57,8 @@ def _deferred_wiring_paths(value: Any, path: str) -> list[str]:
     if isinstance(value, dict):
         return [
             match
-            for key, item in value.items()
-            for match in _deferred_wiring_paths(
-                item,
-                f"{path}.{key}"
-                if isinstance(key, str) and PATH_KEY_PATTERN.fullmatch(key)
-                else f"{path}.<key>",
-            )
+            for item in value.values()
+            for match in _deferred_wiring_paths(item, path)
         ]
     return []
 
