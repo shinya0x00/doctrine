@@ -363,6 +363,8 @@ repository policyは、違反をrejectするmechanism、または変更理由と
 
 machine transitionを決めるpolicyは機械的に判定可能にする。人間のjudgmentを必要とするpolicyは、rationale、boundary、trade-offをDecisionへ残す。
 
+Agentごとの解釈差は前提とする。仕様上同じでなければならない結果は、自然言語の推論に委ねず、構造化したstateと機械的に判定可能なruleで決める。
+
 高能力のjudgmentは、architecture、contract、boundary、long-term maintenanceなど、長く影響する判断へ使う。
 
 同じjudgment、confirmation、またはstoppage patternが三回発生したら、rule、recipe、checkなどへ固定すべきか評価する。
@@ -371,12 +373,15 @@ machine transitionを決めるpolicyは機械的に判定可能にする。人�
 
 - policy違反を何がrejectするか、またはどのDecisionが所有するか答えられるか。
 - machine transitionが自由なprose解釈だけに依存していないか。
+- 同じstateとinputから同じ結果が必要な箇所に、Agentの解釈で結果が変わる余地が残っていないか。
 - 同じjudgmentを三回繰り返しながら、固定化を検討していない状態がないか。
 - 固定化しない判断に理由があるか。
 
 ### 非目的
 
 すべてのjudgmentを自動化しない。
+
+Agentのすべての推論、説明、表現を一致させるRuleではない。
 
 Doctrine自身へ特定のlinter、check、schema、workflowを組み込むRuleではない。具体的な実効化方法はOperationが選ぶ。
 
