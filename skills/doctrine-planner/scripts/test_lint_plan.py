@@ -234,7 +234,7 @@ class LintPlanTests(unittest.TestCase):
             stream.write(payload)
             stream.flush()
             result = subprocess.run(
-                [sys.executable, str(LINTER), stream.name],
+                [sys.executable, str(LINTER), str(Path(stream.name).resolve())],
                 check=False,
                 capture_output=True,
                 text=True,
@@ -267,7 +267,7 @@ class LintPlanTests(unittest.TestCase):
                 side_effect=RecursionError,
             ):
                 with redirect_stdout(stdout), redirect_stderr(stderr):
-                    returncode = lint_plan_module.main([stream.name])
+                    returncode = lint_plan_module.main([str(Path(stream.name).resolve())])
         self.assertEqual(returncode, 2)
         self.assertEqual(stdout.getvalue(), "")
         self.assertEqual(
@@ -288,7 +288,7 @@ class LintPlanTests(unittest.TestCase):
                 side_effect=RecursionError,
             ):
                 with redirect_stdout(stdout), redirect_stderr(stderr):
-                    returncode = lint_plan_module.main([stream.name])
+                    returncode = lint_plan_module.main([str(Path(stream.name).resolve())])
         self.assertEqual(returncode, 2)
         self.assertEqual(stdout.getvalue(), "")
         self.assertEqual(
@@ -304,7 +304,7 @@ class LintPlanTests(unittest.TestCase):
             stdout = StringIO()
             stderr = StringIO()
             with redirect_stdout(stdout), redirect_stderr(stderr):
-                returncode = lint_plan_module.main([stream.name])
+                returncode = lint_plan_module.main([str(Path(stream.name).resolve())])
         self.assertEqual(returncode, 2)
         self.assertEqual(stdout.getvalue(), "")
         self.assertIn(
@@ -325,7 +325,7 @@ class LintPlanTests(unittest.TestCase):
                 side_effect=ValueError("invalid numeric token"),
             ):
                 with redirect_stdout(stdout), redirect_stderr(stderr):
-                    returncode = lint_plan_module.main([stream.name])
+                    returncode = lint_plan_module.main([str(Path(stream.name).resolve())])
         self.assertEqual(returncode, 2)
         self.assertEqual(stdout.getvalue(), "")
         self.assertEqual(
@@ -349,7 +349,7 @@ class LintPlanTests(unittest.TestCase):
                 stdout = StringIO()
                 stderr = StringIO()
                 with redirect_stdout(stdout), redirect_stderr(stderr):
-                    returncode = lint_plan_module.main([stream.name])
+                    returncode = lint_plan_module.main([str(Path(stream.name).resolve())])
         finally:
             sys.set_int_max_str_digits(previous_limit)
         self.assertEqual(returncode, 2)
@@ -357,9 +357,26 @@ class LintPlanTests(unittest.TestCase):
         self.assertIn("verdict: blocked\n", stderr.getvalue())
         self.assertNotIn("Traceback", stdout.getvalue() + stderr.getvalue())
 
+    def test_cli_accepts_a_nested_regular_plan(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            nested = Path(directory).resolve() / "nested"
+            nested.mkdir()
+            plan = nested / "plan.json"
+            plan.write_text(
+                json.dumps(load_fixture("good-runtime.json")), encoding="utf-8"
+            )
+            stdout = StringIO()
+            stderr = StringIO()
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                returncode = lint_plan_module.main([str(plan)])
+        self.assertEqual(returncode, 0, stderr.getvalue())
+        self.assertEqual(stdout.getvalue(), "verdict: proceed\n")
+        self.assertEqual(stderr.getvalue(), "")
+
     @unittest.skipUnless(hasattr(os, "symlink"), "symlink support is required")
     def test_cli_rejects_symlinked_plan(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
+            directory = str(Path(directory).resolve())
             target = Path(directory) / "target.json"
             link = Path(directory) / "plan.json"
             target.write_text("{}", encoding="utf-8")
@@ -372,12 +389,55 @@ class LintPlanTests(unittest.TestCase):
         self.assertEqual(stdout.getvalue(), "")
         self.assertEqual(
             stderr.getvalue(),
-            "verdict: blocked\nerror: plan must not be a symlink\n",
+            "verdict: blocked\nerror: plan path must not contain symlinks\n",
+        )
+        self.assertNotIn("Traceback", stdout.getvalue() + stderr.getvalue())
+
+    @unittest.skipUnless(hasattr(os, "symlink"), "symlink support is required")
+    def test_cli_rejects_symlinked_parent_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            directory = str(Path(directory).resolve())
+            real_directory = Path(directory) / "real"
+            real_directory.mkdir()
+            (real_directory / "plan.json").write_text("{}", encoding="utf-8")
+            linked_directory = Path(directory) / "linked"
+            os.symlink(real_directory, linked_directory, target_is_directory=True)
+            stdout = StringIO()
+            stderr = StringIO()
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                returncode = lint_plan_module.main(
+                    [str(linked_directory / "plan.json")]
+                )
+        self.assertEqual(returncode, 2)
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertIn(
+            "verdict: blocked\nerror: plan path must not contain symlinks\n",
+            stderr.getvalue(),
+        )
+        self.assertNotIn("Traceback", stdout.getvalue() + stderr.getvalue())
+
+    def test_cli_fails_closed_without_nofollow_support(self) -> None:
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as stream:
+            stream.write("{}")
+            stream.flush()
+            stdout = StringIO()
+            stderr = StringIO()
+            with mock.patch.object(
+                lint_plan_module.os, "O_NOFOLLOW", 0, create=True
+            ):
+                with redirect_stdout(stdout), redirect_stderr(stderr):
+                    returncode = lint_plan_module.main([str(Path(stream.name).resolve())])
+        self.assertEqual(returncode, 2)
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertEqual(
+            stderr.getvalue(),
+            "verdict: blocked\nerror: secure plan opening is unavailable\n",
         )
         self.assertNotIn("Traceback", stdout.getvalue() + stderr.getvalue())
 
     def test_cli_rejects_non_regular_plan(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
+            directory = str(Path(directory).resolve())
             stdout = StringIO()
             stderr = StringIO()
             with redirect_stdout(stdout), redirect_stderr(stderr):
@@ -390,6 +450,7 @@ class LintPlanTests(unittest.TestCase):
     @unittest.skipUnless(hasattr(os, "mkfifo"), "FIFO support is required")
     def test_cli_rejects_fifo_without_waiting_for_a_writer(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
+            directory = str(Path(directory).resolve())
             fifo = Path(directory) / "plan.fifo"
             os.mkfifo(fifo)
             stdout = StringIO()
@@ -432,7 +493,7 @@ class LintPlanTests(unittest.TestCase):
             json.dump(plan, stream)
             stream.flush()
             result = subprocess.run(
-                [sys.executable, str(LINTER), stream.name],
+                [sys.executable, str(LINTER), str(Path(stream.name).resolve())],
                 check=False,
                 capture_output=True,
                 text=True,
