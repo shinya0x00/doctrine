@@ -5,7 +5,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
+import stat
 import sys
 import unicodedata
 from pathlib import Path
@@ -16,6 +18,8 @@ DOCTRINE_REF_PATTERN = re.compile(
     r"\Ahttps://github\.com/shinya0x00/doctrine/blob/"
     r"[0-9a-f]{40}/DOCTRINE\.md\Z"
 )
+
+MAX_PLAN_BYTES = 1024 * 1024
 
 
 def _nonempty_string(value: Any) -> bool:
@@ -186,12 +190,41 @@ def lint_plan(plan: Any) -> list[str]:
     return errors
 
 
+def _read_plan(path: Path) -> str:
+    """Read a bounded regular plan file without following symlinks."""
+    if path.is_symlink():
+        raise ValueError("plan must not be a symlink")
+
+    flags = (
+        os.O_RDONLY
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_NONBLOCK", 0)
+    )
+    file_descriptor: int | None = os.open(path, flags)
+    try:
+        metadata = os.fstat(file_descriptor)
+        if not stat.S_ISREG(metadata.st_mode):
+            raise ValueError("plan must be a regular file")
+        if metadata.st_size > MAX_PLAN_BYTES:
+            raise ValueError("plan exceeds maximum size")
+
+        with os.fdopen(file_descriptor, "rb") as stream:
+            file_descriptor = None
+            content = stream.read(MAX_PLAN_BYTES + 1)
+        if len(content) > MAX_PLAN_BYTES:
+            raise ValueError("plan exceeds maximum size")
+        return content.decode("utf-8")
+    finally:
+        if file_descriptor is not None:
+            os.close(file_descriptor)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("plan", type=Path, help="JSON scratch plan to lint")
     args = parser.parse_args(argv)
     try:
-        plan = json.loads(args.plan.read_text(encoding="utf-8"))
+        plan = json.loads(_read_plan(args.plan))
         errors = lint_plan(plan)
     except RecursionError:
         print(
@@ -199,7 +232,13 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 2
-    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+    except MemoryError:
+        print(
+            "verdict: blocked\nerror: plan input exceeds resource limits",
+            file=sys.stderr,
+        )
+        return 2
+    except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
         print(f"verdict: blocked\nerror: {error}", file=sys.stderr)
         return 2
 
